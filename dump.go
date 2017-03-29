@@ -120,7 +120,15 @@ func worker(ch chan string,
 	for {
 		select {
 		case path := <-ch:
-			sendWhisperData(path, baseDirectory, graphiteHost, graphitePort, graphiteProtocol)
+			{
+
+				err := sendWhisperData(path, baseDirectory, graphiteHost, graphitePort, graphiteProtocol)
+				if err != nil {
+					log.Println("Failed: " + path)
+				} else {
+					log.Println("OK: " + path)
+				}
+			}
 		case <-quit:
 			return
 		}
@@ -156,6 +164,11 @@ func main() {
 		"Workers to run in parallel")
 	flag.Parse()
 
+	if !(*graphiteProtocol == "tcp" ||
+		*graphiteProtocol == "udp" ||
+		*graphiteProtocol == "nop") {
+		log.Fatalln("Graphite protocol " + *graphiteProtocol + " not supported, use tcp/udp/nop.")
+	}
 	ch := make(chan string)
 	quit := make(chan int)
 	var wg sync.WaitGroup
