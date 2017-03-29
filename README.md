@@ -20,10 +20,10 @@ Usage of ./whisper-to-graphite:
     	graphite Port (default 2003)
   -protocol string
     	Protocol to use to transfer graphite data (tcp/udp/nop) (default "tcp")
+  -workers int
+        Workers to run in parallel (default 5)
 ```
 
 Assuming you don't want to use this as testcase for your IO subsystem,
 you might want to ensure that you don't send the data to the host you are reading it from.
 
-## Todo
-Dump and send data in parallel to speed things up.

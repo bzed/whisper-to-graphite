@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -90,7 +91,7 @@ func sendWhisperData(filename string, baseDirectory string, graphiteHost string,
 	return err
 }
 
-func findWhisperFiles(ch chan string, directory string) {
+func findWhisperFiles(ch chan string, quit chan int, directory string) {
 	visit := func(path string, info os.FileInfo, err error) error {
 		if (info != nil) && !info.IsDir() {
 			if strings.HasSuffix(path, ".wsp") {
@@ -103,7 +104,27 @@ func findWhisperFiles(ch chan string, directory string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	close(ch)
+	close(quit)
+}
+
+func worker(ch chan string,
+	quit chan int,
+	wg *sync.WaitGroup,
+	baseDirectory string,
+	graphiteHost string,
+	graphitePort int,
+	graphiteProtocol string) {
+
+	for i := 0; i == 0; {
+		select {
+		case path := <-ch:
+			sendWhisperData(path, baseDirectory, graphiteHost, graphitePort, graphiteProtocol)
+		case <-quit:
+			i = 1
+		}
+
+	}
+	wg.Done()
 }
 
 func main() {
@@ -128,11 +149,20 @@ func main() {
 		"protocol",
 		"tcp",
 		"Protocol to use to transfer graphite data (tcp/udp/nop)")
+	workers := flag.Int(
+		"workers",
+		5,
+		"Workers to run in parallel")
 	flag.Parse()
 
 	ch := make(chan string)
-	go findWhisperFiles(ch, *directory)
-	for wspFile := range ch {
-		sendWhisperData(wspFile, *baseDirectory, *graphiteHost, *graphitePort, *graphiteProtocol)
+	quit := make(chan int)
+	var wg sync.WaitGroup
+
+	wg.Add(*workers)
+	for i := 0; i < *workers; i++ {
+		go worker(ch, quit, &wg, *baseDirectory, *graphiteHost, *graphitePort, *graphiteProtocol)
 	}
+	go findWhisperFiles(ch, quit, *directory)
+	wg.Wait()
 }
