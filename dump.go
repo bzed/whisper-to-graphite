@@ -115,16 +115,17 @@ func worker(ch chan string,
 	graphitePort int,
 	graphiteProtocol string) {
 
-	for i := 0; i == 0; {
+	defer wg.Done()
+
+	for {
 		select {
 		case path := <-ch:
 			sendWhisperData(path, baseDirectory, graphiteHost, graphitePort, graphiteProtocol)
 		case <-quit:
-			i = 1
+			return
 		}
 
 	}
-	wg.Done()
 }
 
 func main() {
