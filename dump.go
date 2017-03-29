@@ -80,7 +80,7 @@ func sendWhisperData(filename string, baseDirectory string, graphiteHost string,
 	return err
 }
 
-func findWhisperFiles(directory string) chan string {
+func findWhisperFiles(directory string) <-chan string {
 	ch := make(chan string)
 	visit := func(path string, info os.FileInfo, err error) error {
 		if (info != nil) && !info.IsDir() {
