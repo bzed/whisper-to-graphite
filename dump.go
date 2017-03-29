@@ -6,6 +6,7 @@ import (
 	"github.com/lomik/go-whisper"
 	"github.com/marpaia/graphite-golang"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,9 +27,11 @@ func convertFilename(filename string, baseDirectory string) (string, error) {
 	if strings.HasPrefix(absFilename, absBaseDirectory) {
 		metric := strings.Replace(
 			strings.TrimPrefix(
-				strings.TrimPrefix(
-					absFilename,
-					absBaseDirectory),
+				strings.TrimSuffix(
+					strings.TrimPrefix(
+						absFilename,
+						absBaseDirectory),
+					".wsp"),
 				"/"),
 			"/",
 			".",
@@ -63,6 +66,9 @@ func sendWhisperData(filename string, baseDirectory string, graphiteHost string,
 	point_count := 0
 	metrics := make([]graphite.Metric, 1000)
 	for _, point := range timeSeriesdata.Points() {
+		if math.IsNaN(point.Value) {
+			continue
+		}
 		v := strconv.FormatFloat(point.Value, 'f', -1, 64)
 		metrics[point_count] = graphite.NewMetric(metricName, v, int64(point.Time))
 		point_count++
@@ -75,13 +81,16 @@ func sendWhisperData(filename string, baseDirectory string, graphiteHost string,
 			metrics = make([]graphite.Metric, 1000)
 		}
 	}
+	err = graphiteConn.SendMetrics(metrics)
+	if err != nil {
+		return err
+	}
 
 	err = nil
 	return err
 }
 
-func findWhisperFiles(directory string) <-chan string {
-	ch := make(chan string)
+func findWhisperFiles(ch chan string, directory string) {
 	visit := func(path string, info os.FileInfo, err error) error {
 		if (info != nil) && !info.IsDir() {
 			if strings.HasSuffix(path, ".wsp") {
@@ -92,10 +101,9 @@ func findWhisperFiles(directory string) <-chan string {
 	}
 	err := filepath.Walk(directory, visit)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
 	close(ch)
-	return ch
 }
 
 func main() {
@@ -122,7 +130,9 @@ func main() {
 		"Protocol to use to transfer graphite data (tcp/udp/nop)")
 	flag.Parse()
 
-	for wspFile := range findWhisperFiles(*directory) {
+	ch := make(chan string)
+	go findWhisperFiles(ch, *directory)
+	for wspFile := range ch {
 		sendWhisperData(wspFile, *baseDirectory, *graphiteHost, *graphitePort, *graphiteProtocol)
 	}
 }
