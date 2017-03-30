@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
-	"github.com/lomik/go-whisper"
+	"github.com/bzed/go-whisper"
 	"github.com/marpaia/graphite-golang"
 	"log"
 	"math"
@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 func convertFilename(filename string, baseDirectory string) (string, error) {
@@ -58,34 +57,26 @@ func sendWhisperData(
 		return err
 	}
 
-	timeSeriesdata, err := whisperData.Fetch(whisperData.StartTime(), int(time.Now().Unix()))
+	archiveDataPoints, err := whisperData.DumpArchives()
 	if err != nil {
 		return err
 	}
+	metrics := make([]graphite.Metric, 0, 1000)
+	for _, dataPoint := range archiveDataPoints {
+		interval, value := dataPoint.Point()
 
-	point_count := 0
-	metrics := make([]graphite.Metric, 1000)
-	for _, point := range timeSeriesdata.Points() {
-		if math.IsNaN(point.Value) {
+		if math.IsNaN(value) {
 			continue
 		}
-		v := strconv.FormatFloat(point.Value, 'f', -1, 64)
-		metrics[point_count] = graphite.NewMetric(metricName, v, int64(point.Time))
-		point_count++
-		if point_count >= 1000 {
-			err = graphiteConn.SendMetrics(metrics)
-			if err != nil {
-				return err
-			}
-			point_count = 0
-			metrics = make([]graphite.Metric, 1000)
-		}
+
+		v := strconv.FormatFloat(value, 'f', 20, 64)
+		metrics = append(metrics, graphite.NewMetric(metricName, v, int64(interval)))
+
 	}
 	err = graphiteConn.SendMetrics(metrics)
 	if err != nil {
 		return err
 	}
-
 	err = nil
 	return err
 }
