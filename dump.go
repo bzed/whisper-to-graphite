@@ -43,13 +43,12 @@ func convertFilename(filename string, baseDirectory string) (string, error) {
 	return "", err
 }
 
-func sendWhisperData(filename string, baseDirectory string, graphiteHost string, graphitePort int, graphiteProtocol string) error {
+func sendWhisperData(
+	filename string,
+	baseDirectory string,
+	graphiteConn *graphite.Graphite,
+) error {
 	metricName, err := convertFilename(filename, baseDirectory)
-	if err != nil {
-		return err
-	}
-
-	graphiteConn, err := graphite.GraphiteFactory(graphiteProtocol, graphiteHost, graphitePort, "")
 	if err != nil {
 		return err
 	}
@@ -117,14 +116,20 @@ func worker(ch chan string,
 
 	defer wg.Done()
 
+	graphiteConn, err := graphite.GraphiteFactory(graphiteProtocol, graphiteHost, graphitePort, "")
+	if err != nil {
+		return
+	}
+
 	for {
 		select {
 		case path := <-ch:
 			{
 
-				err := sendWhisperData(path, baseDirectory, graphiteHost, graphitePort, graphiteProtocol)
+				err := sendWhisperData(path, baseDirectory, graphiteConn)
 				if err != nil {
 					log.Println("Failed: " + path)
+					log.Println(err)
 				} else {
 					log.Println("OK: " + path)
 				}
