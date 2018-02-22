@@ -46,6 +46,8 @@ func sendWhisperData(
 	filename string,
 	baseDirectory string,
 	graphiteConn *graphite.Graphite,
+	fromTs int,
+	toTs int,
 ) error {
 	metricName, err := convertFilename(filename, baseDirectory)
 	if err != nil {
@@ -65,7 +67,7 @@ func sendWhisperData(
 	for _, dataPoint := range archiveDataPoints {
 		interval, value := dataPoint.Point()
 
-		if math.IsNaN(value) || interval == 0 {
+		if math.IsNaN(value) || interval == 0 || interval < fromTs || interval > toTs {
 			continue
 		}
 
@@ -103,7 +105,9 @@ func worker(ch chan string,
 	baseDirectory string,
 	graphiteHost string,
 	graphitePort int,
-	graphiteProtocol string) {
+	graphiteProtocol string,
+	fromTs int,
+	toTs int) {
 
 	defer wg.Done()
 
@@ -117,7 +121,7 @@ func worker(ch chan string,
 		case path := <-ch:
 			{
 
-				err := sendWhisperData(path, baseDirectory, graphiteConn)
+				err := sendWhisperData(path, baseDirectory, graphiteConn, fromTs, toTs)
 				if err != nil {
 					log.Println("Failed: " + path)
 					log.Println(err)
@@ -158,6 +162,14 @@ func main() {
 		"workers",
 		5,
 		"Workers to run in parallel")
+	fromTs := flag.Int(
+		"from",
+		0,
+		"Starting timestamp to dump data from")
+	toTs := flag.Int(
+		"to",
+		2147483647,
+		"Ending timestamp to dump data up to")
 	flag.Parse()
 
 	if !(*graphiteProtocol == "tcp" ||
@@ -171,7 +183,7 @@ func main() {
 
 	wg.Add(*workers)
 	for i := 0; i < *workers; i++ {
-		go worker(ch, quit, &wg, *baseDirectory, *graphiteHost, *graphitePort, *graphiteProtocol)
+		go worker(ch, quit, &wg, *baseDirectory, *graphiteHost, *graphitePort, *graphiteProtocol, *fromTs, *toTs)
 	}
 	go findWhisperFiles(ch, quit, *directory)
 	wg.Wait()
