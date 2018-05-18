@@ -18,10 +18,13 @@ Usage of ./whisper-to-graphite:
     	Hostname/IP of the graphite server (default "127.0.0.1")
   -port int
     	graphite Port (default 2003)
+  -pps int
+    	Number of maximum points per second to send (0 means rate limiter is disabled)
   -protocol string
     	Protocol to use to transfer graphite data (tcp/udp/nop) (default "tcp")
   -workers int
-        Workers to run in parallel (default 5)
+    	Workers to run in parallel (default 5)
+
 ```
 
 Assuming you don't want to use this as testcase for your IO subsystem,
