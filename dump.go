@@ -96,6 +96,7 @@ func sendWhisperData(
 	graphiteConn *graphite.Graphite,
 	fromTs int,
 	toTs int,
+	connectRetries int,
 	rateLimiter *rateLimiter,
 ) error {
 	metricName, err := convertFilename(filename, baseDirectory)
@@ -125,11 +126,24 @@ func sendWhisperData(
 
 	}
 	rateLimiter.limit(int64(len(metrics)))
-	err = graphiteConn.SendMetrics(metrics)
+	for r := 1; r <= connectRetries; r++ {
+		err = graphiteConn.SendMetrics(metrics)
+		if err != nil && r != connectRetries {
+			// Trying to reconnect to graphite with given parameters
+			sleep := time.Duration(r) * time.Second
+			log.Printf("Failed to send metric %v to graphite: %v", filename, err.Error())
+			log.Printf("Trying to reconnect and send metric again %v times", connectRetries-r)
+			log.Printf("Sleeping for %v", sleep)
+			time.Sleep(sleep)
+			graphiteConn.Connect()
+		} else {
+			break
+		}
+	}
 	if err != nil {
+		log.Printf("Failed to send metric %v after %v retries", filename, connectRetries)
 		return err
 	}
-	err = nil
 	return err
 }
 
@@ -158,11 +172,13 @@ func worker(ch chan string,
 	graphiteProtocol string,
 	fromTs int,
 	toTs int,
+	connectRetries int,
 	rateLimiter *rateLimiter) {
 	defer wg.Done()
 
 	graphiteConn, err := graphite.GraphiteFactory(graphiteProtocol, graphiteHost, graphitePort, "")
 	if err != nil {
+		log.Printf("Failed to connect to graphite host with error: %v", err.Error())
 		return
 	}
 
@@ -171,7 +187,7 @@ func worker(ch chan string,
 		case path := <-ch:
 			{
 
-				err := sendWhisperData(path, baseDirectory, graphiteConn, fromTs, toTs, rateLimiter)
+				err := sendWhisperData(path, baseDirectory, graphiteConn, fromTs, toTs, connectRetries, rateLimiter)
 				if err != nil {
 					log.Println("Failed: " + path)
 					log.Println(err)
@@ -224,6 +240,10 @@ func main() {
 		"pps",
 		0,
 		"Number of maximum points per second to send (0 means rate limiter is disabled)")
+	connectRetries := flag.Int(
+		"retries",
+		3,
+		"How many connection retries worker will make before failure. It is progressive and each next pause will be equal to 'retry * 1s'")
 	flag.Parse()
 
 	if !(*graphiteProtocol == "tcp" ||
@@ -238,7 +258,7 @@ func main() {
 	rl := newRateLimiter(*pointsPerSecond)
 	wg.Add(*workers)
 	for i := 0; i < *workers; i++ {
-		go worker(ch, quit, &wg, *baseDirectory, *graphiteHost, *graphitePort, *graphiteProtocol, *fromTs, *toTs, rl)
+		go worker(ch, quit, &wg, *baseDirectory, *graphiteHost, *graphitePort, *graphiteProtocol, *fromTs, *toTs, *connectRetries, rl)
 	}
 	go findWhisperFiles(ch, quit, *directory)
 	wg.Wait()
