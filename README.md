@@ -14,6 +14,8 @@ Usage of ./whisper-to-graphite:
     	Base directory where whisper files are located. Used to retrieve the metric name from the filename. (default "/var/lib/graphite/whisper")
   -directory string
     	Directory containing the whisper files you want to send to graphite again (default "/var/lib/graphite/whisper/collectd")
+  -from int
+    	Starting timestamp to dump data from
   -host string
     	Hostname/IP of the graphite server (default "127.0.0.1")
   -port int
@@ -22,9 +24,12 @@ Usage of ./whisper-to-graphite:
     	Number of maximum points per second to send (0 means rate limiter is disabled)
   -protocol string
     	Protocol to use to transfer graphite data (tcp/udp/nop) (default "tcp")
+  -retries int
+    	How many connection retries worker will make before failure. It is progressive and each next pause will be equal to 'retry * 1s' (default 3)
+  -to int
+    	Ending timestamp to dump data up to (default 2147483647)
   -workers int
     	Workers to run in parallel (default 5)
-
 ```
 
 Assuming you don't want to use this as testcase for your IO subsystem,
