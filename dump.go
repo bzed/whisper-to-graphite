@@ -189,7 +189,6 @@ func worker(ch chan string,
 
 				err := sendWhisperData(path, baseDirectory, graphiteConn, fromTs, toTs, connectRetries, rateLimiter)
 				if err != nil {
-					log.Println("Failed: " + path)
 					log.Println(err)
 				} else {
 					log.Println("OK: " + path)
