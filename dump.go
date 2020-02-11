@@ -109,7 +109,7 @@ func sendWhisperData(
 		return err
 	}
 
-	archiveDataPoints, err := whisperData.DumpArchives()
+	archiveDataPoints, err := whisperData.DumpDataPoints()
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func sendWhisperData(
 	for _, dataPoint := range archiveDataPoints {
 		interval, value := dataPoint.Point()
 
-		if math.IsNaN(value) || interval == 0 || interval < fromTs || interval > toTs {
+		if math.IsNaN(value) || interval < fromTs || interval > toTs {
 			continue
 		}
 
